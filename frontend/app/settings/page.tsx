@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
+import { useView, useResponsive } from '@/lib/view-context';
 import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { TelegramIntegration } from '@/components/ui/TelegramIntegration';
 import { useRouter } from 'next/navigation';
 import { 
   User, 
@@ -37,6 +40,8 @@ interface PasswordChangeData {
 
 export default function SettingsPage() {
   const { user, logout, isAuthenticated, isLoading } = useAuth();
+  const { isDesktop, isMobile } = useView();
+  const { containerClass } = useResponsive();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
@@ -108,8 +113,11 @@ export default function SettingsPage() {
     setLoading(true);
 
     try {
-      // Note: This would need to be implemented in the backend
-      // await api.users.updateProfile(profileData);
+      await api.auth.updateProfile({
+        full_name: profileData.full_name,
+        email: profileData.email,
+        telegram_id: profileData.phone_number, // Map phone to telegram_id for now
+      });
       setIsEditingProfile(false);
       showMessage('Profile updated successfully!');
     } catch (error: any) {
@@ -135,11 +143,10 @@ export default function SettingsPage() {
     setLoading(true);
 
     try {
-      // Note: This would need to be implemented in the backend
-      // await api.users.changePassword({
-      //   current_password: passwordData.current_password,
-      //   new_password: passwordData.new_password
-      // });
+      await api.auth.changePassword({
+        current_password: passwordData.current_password,
+        new_password: passwordData.new_password
+      });
       setPasswordData({ current_password: '', new_password: '', confirm_password: '' });
       showMessage('Password changed successfully!');
     } catch (error: any) {
@@ -161,8 +168,7 @@ export default function SettingsPage() {
       if (confirm('This will permanently delete all your data. Type "DELETE" to confirm.')) {
         setLoading(true);
         try {
-          // Note: This would need to be implemented in the backend
-          // await api.users.deleteAccount();
+          await api.auth.deleteAccount();
           await logout();
           router.push('/');
         } catch (error: any) {
@@ -190,11 +196,24 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="container-mobile py-6 space-y-6">
+    <div className={cn(
+      isDesktop ? "container-content py-8" : "container-mobile py-6",
+      "space-y-6"
+    )}>
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600">Manage your account and preferences</p>
+        <h1 className={cn(
+          "font-bold text-gray-900",
+          isDesktop ? "text-3xl" : "text-2xl"
+        )}>
+          Settings
+        </h1>
+        <p className={cn(
+          "text-gray-600",
+          isDesktop ? "text-lg" : "text-base"
+        )}>
+          Manage your account and preferences
+        </p>
       </div>
 
       {/* Messages */}
@@ -415,7 +434,12 @@ export default function SettingsPage() {
 
       {/* Preferences Tab */}
       {activeTab === 'preferences' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="space-y-6">
+          {/* Telegram Integration */}
+          <TelegramIntegration />
+          
+          {/* App Preferences */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-6">App Preferences</h3>
           
           <div className="space-y-6">
@@ -475,6 +499,7 @@ export default function SettingsPage() {
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
               </label>
             </div>
+          </div>
           </div>
         </div>
       )}

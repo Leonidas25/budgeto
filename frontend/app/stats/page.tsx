@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { NoStatsEmpty, NoAchievementsEmpty, DashboardSkeleton } from '@/components/ui/EmptyStates';
+import { WeeklyInsights } from '@/components/ui/WeeklyInsights';
 import { useRouter } from 'next/navigation';
 import { Trophy, Flame, TrendingUp, Star, Calendar, Target, Zap, Award } from 'lucide-react';
 
@@ -128,12 +130,45 @@ export default function StatsPage() {
     return allAchievements;
   };
 
-  if (isLoading || loading) {
-    return <LoadingSpinner />;
+  if (isLoading) {
+    return (
+      <div className="container-mobile py-6">
+        <DashboardSkeleton />
+      </div>
+    );
   }
 
-  if (!isAuthenticated || !gamificationData) {
+  if (loading) {
+    return (
+      <div className="container-mobile py-6">
+        <DashboardSkeleton />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
     return null;
+  }
+
+  if (!gamificationData) {
+    return (
+      <div className="container-mobile py-6">
+        <NoStatsEmpty />
+      </div>
+    );
+  }
+
+  // Check if user has very minimal data
+  const hasMinimalData = gamificationData.total_transactions < 3 && 
+                        gamificationData.current_xp < 50 && 
+                        gamificationData.current_level <= 1;
+
+  if (hasMinimalData) {
+    return (
+      <div className="container-mobile py-6">
+        <NoStatsEmpty />
+      </div>
+    );
   }
 
   const achievements = getAllAchievements();
@@ -240,39 +275,54 @@ export default function StatsPage() {
         </h3>
 
         <div className="grid grid-cols-1 gap-3">
-          {achievements.map((achievement) => (
-            <div
-              key={achievement.id}
-              className={`p-4 rounded-lg border transition-all ${
-                achievement.unlocked
-                  ? 'bg-green-50 border-green-200'
-                  : 'bg-gray-50 border-gray-200 opacity-60'
-              }`}
-            >
-              <div className="flex items-center space-x-4">
-                <div className="text-2xl">{achievement.icon}</div>
-                <div className="flex-1">
-                  <h4 className={`font-medium ${
-                    achievement.unlocked ? 'text-green-800' : 'text-gray-600'
-                  }`}>
-                    {achievement.title}
-                  </h4>
-                  <p className={`text-sm ${
-                    achievement.unlocked ? 'text-green-600' : 'text-gray-500'
-                  }`}>
-                    {achievement.description}
-                  </p>
-                </div>
-                {achievement.unlocked && (
-                  <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                    <Star className="w-4 h-4 text-white" />
-                  </div>
-                )}
-              </div>
+          {achievements.length === 0 ? (
+            <div className="text-center py-8">
+              <NoAchievementsEmpty />
             </div>
-          ))}
+          ) : unlockedAchievements.length === 0 ? (
+            <div className="text-center py-6">
+              <div className="text-4xl mb-3">🏆</div>
+              <h4 className="font-medium text-gray-600 mb-2">No achievements yet</h4>
+              <p className="text-sm text-gray-500">Start adding transactions to unlock your first achievement!</p>
+            </div>
+          ) : (
+            achievements.map((achievement) => (
+              <div
+                key={achievement.id}
+                className={`p-4 rounded-lg border transition-all ${
+                  achievement.unlocked
+                    ? 'bg-green-50 border-green-200'
+                    : 'bg-gray-50 border-gray-200 opacity-60'
+                }`}
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="text-2xl">{achievement.icon}</div>
+                  <div className="flex-1">
+                    <h4 className={`font-medium ${
+                      achievement.unlocked ? 'text-green-800' : 'text-gray-600'
+                    }`}>
+                      {achievement.title}
+                    </h4>
+                    <p className={`text-sm ${
+                      achievement.unlocked ? 'text-green-600' : 'text-gray-500'
+                    }`}>
+                      {achievement.description}
+                    </p>
+                  </div>
+                  {achievement.unlocked && (
+                    <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                      <Star className="w-4 h-4 text-white" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
+
+      {/* Weekly Insights */}
+      <WeeklyInsights showHeader={true} />
 
       {/* Level Rewards Info */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

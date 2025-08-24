@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm install
 
 # Copy application code
 COPY . .
@@ -15,6 +15,10 @@ COPY . .
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
+
+# Create .next directory with proper permissions
+RUN mkdir -p /app/.next && chown -R nextjs:nodejs /app
+
 USER nextjs
 
 # Expose port

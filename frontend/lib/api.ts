@@ -45,14 +45,33 @@ export const api = {
     register: (userData: RegisterData) => 
       apiClient.post('/api/auth/register', userData),
     
-    login: (credentials: LoginCredentials) => 
-      apiClient.post('/api/auth/login', credentials),
+    login: (credentials: LoginCredentials) => {
+      // OAuth2PasswordRequestForm expects form data, not JSON
+      const formData = new FormData();
+      formData.append('username', credentials.username);
+      formData.append('password', credentials.password);
+      
+      return apiClient.post('/api/auth/login', formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+    },
     
     me: () => 
       apiClient.get('/api/auth/me'),
     
     refresh: () => 
       apiClient.post('/api/auth/refresh'),
+    
+    updateProfile: (profileData: UserProfileUpdate) => 
+      apiClient.put('/api/auth/profile', profileData),
+    
+    changePassword: (passwordData: PasswordChangeRequest) => 
+      apiClient.post('/api/auth/change-password', passwordData),
+    
+    deleteAccount: () => 
+      apiClient.delete('/api/auth/account'),
   },
 
   // Transactions
@@ -77,6 +96,12 @@ export const api = {
     
     getSummary: () => 
       apiClient.get('/api/transactions/stats/summary'),
+    
+    suggestCategory: (data: CategorySuggestionRequest) => 
+      apiClient.post('/api/transactions/suggest-category', data),
+    
+    getPopularCategories: (limit = 10) => 
+      apiClient.get('/api/transactions/categories/popular', { params: { limit } }),
   },
 
   // Budgets
@@ -119,6 +144,42 @@ export const api = {
     
     testPatterns: () => 
       apiClient.get('/api/sms/test-patterns'),
+  },
+
+  // Telegram Bot
+  telegram: {
+    getMyStatus: () =>
+      apiClient.get('/api/telegram/my-telegram'),
+    
+    unlink: () =>
+      apiClient.post('/api/telegram/unlink'),
+    
+    getBotInfo: () =>
+      apiClient.get('/api/telegram/info'),
+    
+    sendMessage: (userId: number, message: string) =>
+      apiClient.post(`/api/telegram/send-message/${userId}`, { message }),
+  },
+
+  // Achievements
+  achievements: {
+    getAchievements: () =>
+      apiClient.get('/api/achievements/achievements'),
+    
+    checkAchievements: () =>
+      apiClient.post('/api/achievements/check-achievements'),
+    
+    getNotifications: () =>
+      apiClient.get('/api/achievements/notifications'),
+    
+    markNotificationRead: (notificationId: number) =>
+      apiClient.post(`/api/achievements/notifications/${notificationId}/read`),
+    
+    markAllNotificationsRead: () =>
+      apiClient.post('/api/achievements/notifications/read-all'),
+    
+    getAchievementStats: () =>
+      apiClient.get('/api/achievements/achievement-stats'),
   },
 };
 
@@ -176,6 +237,35 @@ export interface BudgetUpdate {
   target_amount?: number;
   deadline?: string;
   is_active?: boolean;
+}
+
+// New categorization interfaces
+export interface CategorySuggestionRequest {
+  description: string;
+  amount: number;
+  transaction_type?: 'income' | 'expense';
+  timestamp?: string;
+}
+
+export interface CategorySuggestion {
+  category: string;
+  confidence: number;
+  confidence_level: string;
+  reasons: string[];
+  explanation: string;
+}
+
+// New profile management interfaces
+export interface UserProfileUpdate {
+  full_name?: string;
+  email?: string;
+  telegram_id?: string;
+  archetype?: string;
+}
+
+export interface PasswordChangeRequest {
+  current_password: string;
+  new_password: string;
 }
 
 export default apiClient;

@@ -39,11 +39,19 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   const isAuthenticated = !!user;
 
+  // Handle hydration
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
   // Check if user is logged in on app start
   useEffect(() => {
+    if (!isHydrated) return;
+    
     const initAuth = async () => {
       const token = localStorage.getItem('auth_token');
       const userData = localStorage.getItem('user_data');
@@ -62,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     initAuth();
-  }, []);
+  }, [isHydrated]);
 
   const login = async (username: string, password: string) => {
     try {
@@ -72,8 +80,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { access_token, user: userData } = response.data;
       
       // Store token and user data
-      localStorage.setItem('auth_token', access_token);
-      localStorage.setItem('user_data', JSON.stringify(userData));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('auth_token', access_token);
+        localStorage.setItem('user_data', JSON.stringify(userData));
+      }
       
       setUser(userData);
     } catch (error) {
@@ -100,8 +110,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_data');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user_data');
+    }
     setUser(null);
   };
 
@@ -110,7 +122,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await api.auth.me();
       const userData = response.data;
       
-      localStorage.setItem('user_data', JSON.stringify(userData));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('user_data', JSON.stringify(userData));
+      }
       setUser(userData);
     } catch (error) {
       console.error('Failed to refresh user data:', error);

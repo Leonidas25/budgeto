@@ -1,0 +1,348 @@
+# Prometheus Alert Rules for Budgeto
+# Comprehensive alerting for production monitoring
+
+groups:
+  # Application Health Alerts
+  - name: budgeto.application
+    rules:
+      - alert: BudgetoBackendDown
+        expr: up{job="budgeto-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "Budgeto Backend API is down"
+          description: "The Budgeto backend API has been down for more than 1 minute"
+          runbook_url: "https://docs.budgeto.com/runbooks/backend-down"
+
+      - alert: BudgetoFrontendDown
+        expr: up{job="budgeto-frontend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: frontend
+        annotations:
+          summary: "Budgeto Frontend is down"
+          description: "The Budgeto frontend application has been down for more than 2 minutes"
+
+      - alert: BudgetoHighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="budgeto-backend"}[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s for the last 5 minutes"
+
+      - alert: BudgetoHighErrorRate
+        expr: rate(http_requests_total{job="budgeto-backend",status=~"5.."}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+
+      - alert: BudgetoLowSuccessRate
+        expr: rate(http_requests_total{job="budgeto-backend",status=~"2.."}[5m]) / rate(http_requests_total{job="budgeto-backend"}[5m]) < 0.95
+        for: 10m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "Low success rate detected"
+          description: "Success rate is {{ $value | humanizePercentage }} for the last 10 minutes"
+
+  # Database Alerts
+  - name: budgeto.database
+    rules:
+      - alert: PostgreSQLDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL has been down for more than 1 minute"
+
+      - alert: PostgreSQLHighConnections
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "PostgreSQL high connection usage"
+          description: "PostgreSQL is using {{ $value | humanizePercentage }} of max connections"
+
+      - alert: PostgreSQLSlowQueries
+        expr: pg_stat_activity_max_tx_duration > 300
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "PostgreSQL slow queries detected"
+          description: "Longest running transaction is {{ $value }}s"
+
+      - alert: PostgreSQLHighDiskUsage
+        expr: (pg_database_size_bytes / (1024*1024*1024)) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "PostgreSQL database size is large"
+          description: "Database size is {{ $value }}GB"
+
+      - alert: PostgreSQLDeadlocks
+        expr: increase(pg_stat_database_deadlocks[1h]) > 5
+        for: 0m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "PostgreSQL deadlocks detected"
+          description: "{{ $value }} deadlocks detected in the last hour"
+
+  # Cache Alerts
+  - name: budgeto.cache
+    rules:
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: cache
+        annotations:
+          summary: "Redis cache is down"
+          description: "Redis has been down for more than 1 minute"
+
+      - alert: RedisHighMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: cache
+        annotations:
+          summary: "Redis high memory usage"
+          description: "Redis is using {{ $value | humanizePercentage }} of allocated memory"
+
+      - alert: RedisHighLatency
+        expr: redis_slowlog_length > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: cache
+        annotations:
+          summary: "Redis high latency detected"
+          description: "Redis slowlog has {{ $value }} entries"
+
+  # Infrastructure Alerts
+  - name: budgeto.infrastructure
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High disk usage detected"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: DiskSpaceCritical
+        expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 95
+        for: 1m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Critical disk space"
+          description: "Only {{ $value }}% disk space remaining on {{ $labels.instance }}"
+
+      - alert: HighIOWait
+        expr: irate(node_cpu_seconds_total{mode="iowait"}[5m]) * 100 > 20
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High I/O wait detected"
+          description: "I/O wait is {{ $value }}% on {{ $labels.instance }}"
+
+  # Network Alerts
+  - name: budgeto.network
+    rules:
+      - alert: NginxDown
+        expr: up{job="nginx"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: nginx
+        annotations:
+          summary: "Nginx is down"
+          description: "Nginx reverse proxy has been down for more than 1 minute"
+
+      - alert: HighNetworkTraffic
+        expr: rate(node_network_receive_bytes_total[5m]) > 100*1024*1024
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High network traffic detected"
+          description: "Network receive rate is {{ $value | humanize }}B/s on {{ $labels.instance }}"
+
+      - alert: SSLCertificateExpiring
+        expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 30
+        for: 1h
+        labels:
+          severity: warning
+          service: ssl
+        annotations:
+          summary: "SSL certificate expiring soon"
+          description: "SSL certificate for {{ $labels.instance }} expires in {{ $value }} days"
+
+      - alert: SSLCertificateExpired
+        expr: probe_ssl_earliest_cert_expiry - time() <= 0
+        for: 0m
+        labels:
+          severity: critical
+          service: ssl
+        annotations:
+          summary: "SSL certificate has expired"
+          description: "SSL certificate for {{ $labels.instance }} has expired"
+
+  # Business Logic Alerts
+  - name: budgeto.business
+    rules:
+      - alert: HighFailedLogins
+        expr: increase(budgeto_failed_login_attempts_total[1h]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "High number of failed login attempts"
+          description: "{{ $value }} failed login attempts in the last hour"
+
+      - alert: LowTransactionVolume
+        expr: rate(budgeto_transactions_total[1h]) < 0.01
+        for: 2h
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "Low transaction volume"
+          description: "Transaction rate is {{ $value }}/hour for the last 2 hours"
+
+      - alert: HighTransactionErrors
+        expr: rate(budgeto_transaction_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "High transaction error rate"
+          description: "Transaction error rate is {{ $value }}/min for the last 5 minutes"
+
+      - alert: DatabaseBackupFailed
+        expr: time() - budgeto_last_backup_timestamp > 86400
+        for: 1h
+        labels:
+          severity: critical
+          service: backup
+        annotations:
+          summary: "Database backup failed or overdue"
+          description: "Last successful backup was {{ $value | humanizeDuration }} ago"
+
+  # Container Alerts
+  - name: budgeto.containers
+    rules:
+      - alert: ContainerHighCPU
+        expr: rate(container_cpu_usage_seconds_total[5m]) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: container
+        annotations:
+          summary: "Container high CPU usage"
+          description: "Container {{ $labels.name }} CPU usage is {{ $value }}%"
+
+      - alert: ContainerHighMemory
+        expr: container_memory_usage_bytes / container_spec_memory_limit_bytes * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          service: container
+        annotations:
+          summary: "Container high memory usage"
+          description: "Container {{ $labels.name }} memory usage is {{ $value }}%"
+
+      - alert: ContainerRestarting
+        expr: increase(container_restart_count[1h]) > 3
+        for: 0m
+        labels:
+          severity: warning
+          service: container
+        annotations:
+          summary: "Container restarting frequently"
+          description: "Container {{ $labels.name }} has restarted {{ $value }} times in the last hour"
+
+  # Custom Application Metrics
+  - name: budgeto.custom
+    rules:
+      - alert: LowUserActivity
+        expr: rate(budgeto_user_active_sessions[1h]) < 5
+        for: 2h
+        labels:
+          severity: info
+          service: business
+        annotations:
+          summary: "Low user activity detected"
+          description: "Only {{ $value }} active user sessions in the last hour"
+
+      - alert: HighAchievementUnlockRate
+        expr: rate(budgeto_achievements_unlocked_total[1h]) > 100
+        for: 30m
+        labels:
+          severity: info
+          service: gamification
+        annotations:
+          summary: "Unusual achievement unlock activity"
+          description: "{{ $value }} achievements unlocked in the last hour"
+
+      - alert: SMSParsingErrors
+        expr: rate(budgeto_sms_parsing_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: sms
+        annotations:
+          summary: "High SMS parsing error rate"
+          description: "SMS parsing error rate is {{ $value }}/min"
